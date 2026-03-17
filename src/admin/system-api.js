@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import { promises as pfs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { execSync } from 'child_process';
 import { getRequestBody } from '../utils/common.js';
 import logger from '../utils/logger.js';
 import { PLUGIN_MANIFEST, createRemoteApiAdminHandler } from '../plugins/remote-api.js';
@@ -53,6 +54,46 @@ async function saveRouting(config) {
 }
 
 let routingConfig = loadRouting();
+
+// ==================== Git 工具 ====================
+
+function git(cmd) {
+    try {
+        return execSync(`git ${cmd}`, { cwd: process.cwd(), encoding: 'utf8', timeout: 10000 }).trim();
+    } catch { return ''; }
+}
+
+function getVersionFromGit() {
+    const current = VERSION;
+    try {
+        git('fetch origin --quiet');
+        const localHash = git('rev-parse HEAD');
+        const remoteHash = git('rev-parse origin/master');
+        if (!localHash || !remoteHash) return { current, latest: current, hasUpdate: false, behindCount: 0 };
+        const behind = parseInt(git('rev-list --count HEAD..origin/master')) || 0;
+        return { current, latest: behind > 0 ? 'latest' : current, hasUpdate: behind > 0, behindCount: behind };
+    } catch { return { current, latest: current, hasUpdate: false, behindCount: 0 }; }
+}
+
+function getGitStatusInfo() {
+    const status = git('status --porcelain');
+    const files = status ? status.split('\n').filter(Boolean).map(l => l.trim()) : [];
+    return { hasLocalChanges: files.length > 0, changedFiles: files };
+}
+
+function getGitLogInfo() {
+    const currentHash = git('rev-parse --short HEAD');
+    const raw = git('log --oneline --format="%H|%h|%s|%ci" -20');
+    if (!raw) return { currentHash, commits: [] };
+    const fullHash = git('rev-parse HEAD');
+    const commits = raw.split('\n').filter(Boolean).map(line => {
+        const [hash, short, message, date] = line.split('|');
+        return { hash, short, message, date, isCurrent: hash === fullHash };
+    });
+    return { currentHash, commits };
+}
+
+let _updateLog = [];
 
 export { KIRO_MODELS, routingConfig };
 
@@ -133,10 +174,9 @@ export function createSystemApi(credentialManager) {
 
         // GET /version
         if (method === 'GET' && p0 === 'version' && pathParts.length === 1) {
+            const info = getVersionFromGit();
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({
-                current: VERSION, latest: VERSION, hasUpdate: false, behindCount: 0,
-            }));
+            res.end(JSON.stringify(info));
             return true;
         }
 
@@ -187,14 +227,40 @@ export function createSystemApi(credentialManager) {
         // GET /update/status
         if (method === 'GET' && p0 === 'update' && p1 === 'status') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ log: [] }));
+            res.end(JSON.stringify({ log: _updateLog }));
             return true;
         }
 
         // POST /update
         if (method === 'POST' && p0 === 'update' && pathParts.length === 1) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: false, message: 'Update not supported in kiro.js' }));
+            const body = await getRequestBody(req);
+            const targetCommit = body.targetCommit;
+            _updateLog = [];
+            try {
+                _updateLog.push('正在拉取最新代码...');
+                git('fetch origin');
+                if (targetCommit) {
+                    _updateLog.push(`切换到 ${targetCommit}...`);
+                    git(`checkout ${targetCommit}`);
+                } else {
+                    _updateLog.push('合并远程更新...');
+                    git('pull origin master');
+                }
+                _updateLog.push('更新完成，正在重启...');
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, message: '更新完成，正在重启...' }));
+                setTimeout(async () => {
+                    try {
+                        const touchPath = path.join(process.cwd(), 'src', '.restart-trigger');
+                        await pfs.writeFile(touchPath, Date.now().toString(), 'utf8');
+                    } catch { /* fallback */ }
+                    setTimeout(() => process.exit(1), 300);
+                }, 300);
+            } catch (e) {
+                _updateLog.push(`更新失败: ${e.message}`);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: e.message }));
+            }
             return true;
         }
 
@@ -215,15 +281,17 @@ export function createSystemApi(credentialManager) {
 
         // GET /git/status
         if (method === 'GET' && p0 === 'git' && p1 === 'status') {
+            const info = getGitStatusInfo();
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ hasLocalChanges: false, changedFiles: [] }));
+            res.end(JSON.stringify(info));
             return true;
         }
 
         // GET /git/log
         if (method === 'GET' && p0 === 'git' && p1 === 'log') {
+            const info = getGitLogInfo();
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ currentHash: '', commits: [] }));
+            res.end(JSON.stringify(info));
             return true;
         }
 
