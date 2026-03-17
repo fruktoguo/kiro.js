@@ -1,0 +1,11 @@
+{
+  "enabledApis": {
+    "availableCredentials": true,
+    "batchImport": true,
+    "restart": true,
+    "refreshQuota": true,
+    "totalRemainingQuota": true,
+    "todayTokenTotal": true,
+    "totalCalls": true
+  }
+}

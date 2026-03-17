@@ -1,0 +1,21 @@
+{
+  "name": "kiro.js",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Kiro API Proxy - Node.js implementation",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "axios": "^1.10.0",
+    "dotenv": "^16.4.5",
+    "open": "^10.2.0",
+    "uuid": "^11.1.0",
+    "undici": "^7.12.0",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.6",
+    "socks-proxy-agent": "^8.0.5",
+    "@anthropic-ai/tokenizer": "^0.0.4"
+  }
+}

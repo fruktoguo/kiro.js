@@ -1,0 +1,38 @@
+{
+  "47": {
+    "cachedAt": 1773769062852,
+    "data": {
+      "id": 47,
+      "subscriptionTitle": "KIRO FREE",
+      "currentUsage": 550,
+      "usageLimit": 550,
+      "remaining": 0,
+      "usagePercentage": 100,
+      "nextResetAt": 1775001600
+    }
+  },
+  "49": {
+    "cachedAt": 1773769060841,
+    "data": {
+      "id": 49,
+      "subscriptionTitle": "KIRO FREE",
+      "currentUsage": 336.25,
+      "usageLimit": 550,
+      "remaining": 213.75,
+      "usagePercentage": 61.14,
+      "nextResetAt": 1775001600
+    }
+  },
+  "51": {
+    "cachedAt": 1773768197869,
+    "data": {
+      "id": 51,
+      "subscriptionTitle": "KIRO FREE",
+      "currentUsage": 323.68,
+      "usageLimit": 550,
+      "remaining": 226.32,
+      "usagePercentage": 58.85,
+      "nextResetAt": 1775001600
+    }
+  }
+}
