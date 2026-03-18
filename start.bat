@@ -24,27 +24,32 @@ if not exist "node_modules" (
     )
 )
 
-:: 检查配置文件
+:: 自动创建配置文件
 if not exist "config.json" (
     if exist "config.example.json" (
-        echo [kiro] config.json not found, copying from config.example.json...
+        echo [kiro] config.json not found, creating from example...
         copy "config.example.json" "config.json" >nul
-        echo [kiro] Please edit config.json and set your apiKey and adminApiKey.
-        pause
-        exit /b 0
+    ) else (
+        echo [kiro] Creating default config.json...
+        echo {"host":"0.0.0.0","port":8990,"region":"us-east-1","apiKey":"sk-kiro","adminApiKey":"admin"} > config.json
     )
+    echo [kiro] config.json created. Edit it later to customize.
 )
 
-:: 检查凭据文件
+:: 自动创建凭据文件
 if not exist "credentials.json" (
     if exist "credentials.example.json" (
-        echo [kiro] credentials.json not found, copying from credentials.example.json...
+        echo [kiro] credentials.json not found, creating from example...
         copy "credentials.example.json" "credentials.json" >nul
-        echo [kiro] Please edit credentials.json and set your refreshToken.
-        pause
-        exit /b 0
+    ) else (
+        echo [kiro] Creating empty credentials.json...
+        echo [] > credentials.json
     )
+    echo [kiro] credentials.json created. Add credentials via admin UI.
 )
+
+:: 创建 configs 目录
+if not exist "configs" mkdir configs
 
 echo [kiro] Starting server (auto-restart on code change)...
 echo.
