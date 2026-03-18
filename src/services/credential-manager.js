@@ -158,6 +158,22 @@ export default class CredentialManager {
         };
 
         await svc.initialize();
+
+        // 如果没有 accessToken，自动刷新 token
+        if (!svc.accessToken && svc.refreshToken) {
+            try {
+                logger.info(`[Credentials] #${entry.id} no accessToken, refreshing...`);
+                await svc.initializeAuth(true);
+                // 同步刷新后的凭据回 entry
+                if (svc.accessToken) c.accessToken = svc.accessToken;
+                if (svc.expiresAt) c.expiresAt = svc.expiresAt;
+                if (svc.profileArn) c.profileArn = svc.profileArn;
+                await this.persistCredentials();
+            } catch (err) {
+                logger.warn(`[Credentials] #${entry.id} token refresh failed: ${err.message}`);
+            }
+        }
+
         entry.service = svc;
     }
 
@@ -269,7 +285,7 @@ export default class CredentialManager {
             const { score, rpm: credRpm, decay } = this._computeBalance(entry);
             const c = entry.credentials;
             const rtHash = c.refreshToken
-                ? crypto.createHash('sha256').update(c.refreshToken).digest('hex').slice(0, 12) : null;
+                ? crypto.createHash('sha256').update(c.refreshToken).digest('hex') : null;
             const subTitle = entry.cachedBalance?.subscriptionTitle || null;
             let group = this.groups[entry.id] || null;
             // 未手动分组时，根据 subscriptionTitle 自动推断
@@ -367,6 +383,15 @@ export default class CredentialManager {
     }
 
     async addCredential(credData) {
+        // 重复检测（对齐 kiro.py token_manager.add_credential）
+        const rt = credData.refreshToken;
+        if (!rt) throw new Error('缺少 refreshToken');
+        const rtHash = crypto.createHash('sha256').update(rt).digest('hex');
+        const dup = this.entries.some(e =>
+            e.credentials.refreshToken && crypto.createHash('sha256').update(e.credentials.refreshToken).digest('hex') === rtHash
+        );
+        if (dup) throw new Error('凭据已存在（refreshToken 重复）');
+
         const id = Math.max(0, ...this.entries.map(e => e.id)) + 1;
         credData.id = id;
         const entry = new CredentialEntry(id, credData);

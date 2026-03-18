@@ -19,9 +19,23 @@ export function createCredentialsApi(credentialManager) {
         // POST /credentials (添加)
         if (method === 'POST' && pathParts.length === 1 && pathParts[0] === 'credentials') {
             const body = await getRequestBody(req);
-            const id = await credentialManager.addCredential(body);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, message: 'Credential added', credentialId: id }));
+            try {
+                const id = await credentialManager.addCredential(body);
+
+                // 主动获取订阅等级（对齐 kiro.py，不影响添加结果）
+                try {
+                    await credentialManager.getBalance(id, true);
+                } catch (e) {
+                    logger.warn(`[Credentials] #${id} 添加后获取订阅等级失败: ${e.message}`);
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, message: 'Credential added', credentialId: id, email: body.email || undefined }));
+            } catch (err) {
+                const isDuplicate = err.message.includes('重复');
+                res.writeHead(isDuplicate ? 409 : 400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: false, message: isDuplicate ? '凭据已存在（refreshToken 重复）' : err.message }));
+            }
             return true;
         }
 
