@@ -52,6 +52,13 @@ export default class CredentialManager {
         this.credentialsPath = config.CREDENTIALS_FILE || 'configs/credentials.json';
         this._balanceCache = {}; // { id: { cachedAt, data } }
         this._balanceCachePath = path.join(process.cwd(), 'configs', 'kiro_balance_cache.json');
+        // Token 用量统计
+        this.tokenUsage = {
+            today: { input: 0, output: 0 },
+            yesterday: { input: 0, output: 0 },
+            models: {}, // { model: { input, output } }
+        };
+        this._tokenUsageDate = new Date().toDateString();
         this._loadBalanceCache();
     }
 
@@ -245,7 +252,7 @@ export default class CredentialManager {
         return available[0];
     }
 
-    recordSuccess(credId, model = null) {
+    recordSuccess(credId, model = null, inputTokens = 0, outputTokens = 0) {
         const e = this.entries.find(x => x.id === credId);
         if (!e) return;
         const now = Date.now();
@@ -260,6 +267,22 @@ export default class CredentialManager {
             this.modelCallCounts[model] = (this.modelCallCounts[model] || 0) + 1;
             if (!this.modelCredCounts[model]) this.modelCredCounts[model] = {};
             this.modelCredCounts[model][credId] = (this.modelCredCounts[model][credId] || 0) + 1;
+        }
+        // Token 用量统计
+        if (inputTokens || outputTokens) {
+            const today = new Date().toDateString();
+            if (today !== this._tokenUsageDate) {
+                this.tokenUsage.yesterday = { ...this.tokenUsage.today };
+                this.tokenUsage.today = { input: 0, output: 0 };
+                this._tokenUsageDate = today;
+            }
+            this.tokenUsage.today.input += inputTokens;
+            this.tokenUsage.today.output += outputTokens;
+            if (model) {
+                if (!this.tokenUsage.models[model]) this.tokenUsage.models[model] = { input: 0, output: 0 };
+                this.tokenUsage.models[model].input += inputTokens;
+                this.tokenUsage.models[model].output += outputTokens;
+            }
         }
     }
 

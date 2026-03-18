@@ -160,6 +160,7 @@ async function handleMessagesProxy(req, res, credentialManager) {
         }
 
         try {
+            let inputTokens = 0, outputTokens = 0;
             if (isStream) {
                 res.writeHead(200, {
                     'Content-Type': 'text/event-stream',
@@ -171,14 +172,23 @@ async function handleMessagesProxy(req, res, credentialManager) {
                     if (res.writableEnded) break;
                     if (chunk.type) res.write(`event: ${chunk.type}\n`);
                     res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                    // 从 message_delta 事件提取 token 用量
+                    if (chunk.type === 'message_delta' && chunk.usage) {
+                        outputTokens = chunk.usage.output_tokens || outputTokens;
+                    }
+                    if (chunk.type === 'message_start' && chunk.message?.usage) {
+                        inputTokens = chunk.message.usage.input_tokens || 0;
+                    }
                 }
                 if (!res.writableEnded) res.end();
             } else {
                 const result = await entry.service.generateContent(model, body);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(result));
+                inputTokens = result.usage?.input_tokens || 0;
+                outputTokens = result.usage?.output_tokens || 0;
             }
-            credentialManager.recordSuccess(entry.id, model);
+            credentialManager.recordSuccess(entry.id, model, inputTokens, outputTokens);
             return; // 成功，直接返回
         } catch (error) {
             const status = error.response?.status || error.status || 0;

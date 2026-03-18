@@ -55,6 +55,22 @@ async function saveRouting(config) {
 
 let routingConfig = loadRouting();
 
+// ==================== CPU 采样 ====================
+
+let _lastCpuUsage = process.cpuUsage();
+let _lastCpuTime = Date.now();
+let _cpuPercent = 0;
+
+// 每 5 秒采样一次 CPU
+setInterval(() => {
+    const now = Date.now();
+    const elapsed = (now - _lastCpuTime) * 1000; // 转微秒
+    const usage = process.cpuUsage(_lastCpuUsage);
+    _cpuPercent = Math.min(100, Math.round((usage.user + usage.system) / elapsed * 100 * 10) / 10);
+    _lastCpuUsage = process.cpuUsage();
+    _lastCpuTime = now;
+}, 5000).unref();
+
 // ==================== Git 工具 ====================
 
 function git(cmd) {
@@ -105,7 +121,7 @@ export function createSystemApi(credentialManager) {
         // GET /stats
         if (method === 'GET' && p0 === 'stats' && pathParts.length === 1) {
             const stats = credentialManager.getStats();
-            stats.tokenUsage = { today: { input: 0, output: 0 }, yesterday: { input: 0, output: 0 }, models: {} };
+            stats.tokenUsage = credentialManager.tokenUsage;
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(stats));
             return true;
@@ -164,7 +180,7 @@ export function createSystemApi(credentialManager) {
 
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
-                cpuPercent: 0,
+                cpuPercent: _cpuPercent,
                 memoryMb: rssMb,
                 tracedMemoryMb: tracedMb,
                 memoryBreakdown: breakdown,
