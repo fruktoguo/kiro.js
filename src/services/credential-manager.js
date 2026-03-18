@@ -56,7 +56,7 @@ export default class CredentialManager {
         this.tokenUsage = {
             today: { input: 0, output: 0 },
             yesterday: { input: 0, output: 0 },
-            models: {}, // { model: { input, output } }
+            models: {}, // { model: { today: { input, output }, yesterday: { input, output } } }
         };
         this._tokenUsageDate = new Date().toDateString();
         this._loadBalanceCache();
@@ -274,14 +274,24 @@ export default class CredentialManager {
             if (today !== this._tokenUsageDate) {
                 this.tokenUsage.yesterday = { ...this.tokenUsage.today };
                 this.tokenUsage.today = { input: 0, output: 0 };
+                // 翻转 models 的 today → yesterday
+                for (const m of Object.keys(this.tokenUsage.models)) {
+                    this.tokenUsage.models[m].yesterday = { ...this.tokenUsage.models[m].today };
+                    this.tokenUsage.models[m].today = { input: 0, output: 0 };
+                }
                 this._tokenUsageDate = today;
             }
             this.tokenUsage.today.input += inputTokens;
             this.tokenUsage.today.output += outputTokens;
             if (model) {
-                if (!this.tokenUsage.models[model]) this.tokenUsage.models[model] = { input: 0, output: 0 };
-                this.tokenUsage.models[model].input += inputTokens;
-                this.tokenUsage.models[model].output += outputTokens;
+                if (!this.tokenUsage.models[model]) {
+                    this.tokenUsage.models[model] = {
+                        today: { input: 0, output: 0 },
+                        yesterday: { input: 0, output: 0 },
+                    };
+                }
+                this.tokenUsage.models[model].today.input += inputTokens;
+                this.tokenUsage.models[model].today.output += outputTokens;
             }
         }
     }
